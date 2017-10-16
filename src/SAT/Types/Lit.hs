@@ -117,8 +117,7 @@ class IsLit a l where
     fromLit :: Lit l -> a
 
 instance IsLit Int Word where
-    toLit i
-        | i == 0    = error "can not create Lit Word from 0"
-        | otherwise = lit (i > 0) $ toEnum $ (abs i) - 1
+    toLit 0 = error "can not create Lit Word from 0"
+    toLit i = lit (i > 0) $ toEnum $ (abs i) - 1
     fromLit (Pos i) =  1 + fromEnum i
     fromLit (Neg i) = -1 - fromEnum i
