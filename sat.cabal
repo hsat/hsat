@@ -21,10 +21,12 @@ library
                      , vector
                      , split
                      , template-haskell
+                     , boxes
   exposed-modules:     SAT
                      , SAT.Solver
                      , SAT.IntSolver
                      , SAT.Types
+                     , SAT.Util
                      , SAT.Variables
                      , SAT.IntSolver.IPASIR.TH
   other-modules:       SAT.Types.LBool
