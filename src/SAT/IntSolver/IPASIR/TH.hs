@@ -79,6 +79,11 @@ type IpasirSolve     = Ptr () -> IO CInt
 type IpasirVal       = Ptr () -> CInt -> IO CInt
 type IpasirFailed    = Ptr () -> CInt -> IO CInt
 
+class (IntSolver a, Show a) => IpasirSolver a where
+    nVars :: a -> Word
+    ptr :: a -> ForeignPtr ()
+    ctr :: Word -> ForeignPtr () -> a
+
 ipasirSolver :: String -- ^ ADT and Constructor name
              -> Q Exp  -- ^ [e| ipasir_signature |]
              -> Q Exp  -- ^ [e| ipasir_init      |]
@@ -110,18 +115,20 @@ ffiSolver name ffiShow ffiNewIntSolver ffiAddClause ffiSolve = do
 
             instance Show $(conT dataName) where
                 show = $ffiShow . $extractPtr
-            _ptr = $extractPtr
+            instance IpasirSolver $(conT dataName) where
+                nVars = $extractNumVars
+                ptr = $extractPtr
+                ctr = $ctr
             instance IntSolver $(conT dataName) where
                 newIntSolver _ = $ctr 0 <$> $ffiNewIntSolver
                 addIntClause c = do
-                    ptr <- _ptr <$> get
-                    numVars <- lift ($ffiAddClause ptr c)
-                    put ( $ctr numVars ptr )
-                numVars = $extractNumVars <$> get
+                    solver <- get
+                    newSolver <- lift ($ffiAddClause solver c)
+                    put newSolver
+                numVars = nVars <$> get
                 solve = do
-                    ptr <- _ptr <$> get
-                    vars <- numVars
-                    lift ( $ffiSolve vars ptr )
+                    solver <- get
+                    lift ( $ffiSolve solver )
 
         |]
     
@@ -166,36 +173,42 @@ ipasirAddIntClause ipasir_add = [e|
         ipasirAddIntClauseImpl $ipasir_add
     |]
 
-ipasirAddIntClauseImpl :: (Foldable f, IsLit a Word)
+ipasirAddIntClauseImpl :: (Foldable f, IsLit a Word, IpasirSolver s)
                        => IpasirAdd
-                       -> ForeignPtr ()
+                       -> s
                        -> f a
-                       -> IO Word
+                       -> IO s
 ipasirAddIntClauseImpl ipasir_add solver rawClause = do
     let clause = toLit <$> toList rawClause
     mapM_ (add . litToInt) clause
     add 0
-    return $ maximum $ map extract clause
+    let newNumVars = maximum $ nVars solver : map extract clause 
+    return $ ctr newNumVars $ ptr solver
   where
     litToInt lit = (fromEnum $ extract lit + 1) * if isLitPositive lit then 1 else -1
-    add i = withForeignPtr solver (`ipasir_add` toEnum i) 
+    add i = withForeignPtr (ptr solver) (`ipasir_add` toEnum i) 
 
 ipasirSolve :: Q Exp -> Q Exp -> Q Exp -> Q Exp
 ipasirSolve ipasir_solve ipasir_val ipasir_failed = [e|
         ipasirSolveImpl $ipasir_solve $ipasir_val $ipasir_failed
     |]
 
-ipasirSolveImpl :: IpasirSolve -> IpasirVal -> IpasirFailed -> Word -> ForeignPtr () -> IO (ESolution Word)
-ipasirSolveImpl ipasir_solve ipasir_val ipasir_failed numVars solver = do
-    sat <- withForeignPtr solver ipasir_solve
+ipasirSolveImpl :: IpasirSolver s
+                => IpasirSolve
+                -> IpasirVal
+                -> IpasirFailed
+                -> s
+                -> IO (ESolution Word)
+ipasirSolveImpl ipasir_solve ipasir_val ipasir_failed solver = do
+    sat <- withForeignPtr (ptr solver) ipasir_solve
     case sat of
         10 -> Right <$> readSolution
         20 -> Left  <$> readConflict
         _  -> error $ "ipasir_solve returned unexpected result: " ++ show sat
   where
     vars :: (Enum a, Num a) => [a]
-    vars = [0 .. (toEnum $ fromEnum $ numVars)]
-    readAll op = mapM (\ i -> withForeignPtr solver (`op` i)) vars
+    vars = [1 .. (toEnum $ fromEnum $ nVars solver + 1)]
+    readAll op = mapM (\ i -> withForeignPtr (ptr solver) (`op` i)) vars
     readSolution :: IO (Solution Word)
     readSolution = do
         rawSolution <- readAll ipasir_val
