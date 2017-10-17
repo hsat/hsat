@@ -5,10 +5,11 @@
 module SAT.IntSolver.IPASIR.TH
     ( ffiSolver
     , ipasirSolver
-    , ipasirShow
+    , ffiSolverShow
     , ipasirNewIntSolver
     , ipasirAddIntClause
     , ipasirSolve
+    , unsafeReadCString
     
     , IpasirSignature
     , IpasirInit
@@ -103,7 +104,7 @@ ipasirSolver name
     ipasir_solve
     ipasir_val
     ipasir_failed = ffiSolver name
-        (ipasirShow ipasir_signature)
+        (ffiSolverShow [e| unsafeReadCString $ipasir_signature |])
         (ipasirNewIntSolver ipasir_init ipasir_release)
         (ipasirAddIntClause ipasir_add)
         (ipasirSolve ipasir_solve ipasir_val ipasir_failed)
@@ -158,10 +159,12 @@ solverProxy name = FunD (mkName $ uncap name) [Clause [] (NormalB proxyExp) []]
     proxyExp = SigE (ConE 'Proxy) (AppT (ConT ''Proxy) (ConT $ mkName name))
     uncap (c:cx) = toLower c : cx
 
-ipasirShow :: Q Exp -> Q Exp
-ipasirShow ipasir_signature = [e|
-        \ptr -> unsafePerformIO ( peekCString =<< $ipasir_signature ) ++ "@" ++ show ptr
+ffiSolverShow :: Q Exp -> Q Exp
+ffiSolverShow ipasir_signature = [e|
+        \ptr -> $ipasir_signature ++ "@" ++ show ptr
     |]
+
+unsafeReadCString f = unsafePerformIO $ peekCString =<< f
 
 ipasirNewIntSolver :: Q Exp -> Q Exp -> Q Exp
 ipasirNewIntSolver ipasir_init ipasir_release = [e|

@@ -9,10 +9,23 @@ copyright:           2017 Philipp Dargel
 category:            Logic
 build-type:          Simple
 extra-source-files:  README.md
+                   , LICENSE
+                   , stack.yaml
+                   , c-sources/config.h
+                   , c-sources/ipasir.h
+                   , c-sources/picosat.h
+                   , c-sources/picosat.c
+                   , c-sources/version.c
+                   , c-sources/ipasirpicosatglue.c
 cabal-version:       >=1.10
 
 library
   default-language:    Haskell2010
+  Include-dirs:        c-sources
+  c-sources:           c-sources/picosat.c
+                       c-sources/version.c
+                       c-sources/ipasirpicosatglue.c
+  ghc-options:         -optc=-Wall -optc=-Wextra -optc=-DNDEBUG -optc=-O3
   hs-source-dirs:      src
   build-depends:       base >= 4.7 && < 5
                      , comonad
@@ -29,17 +42,16 @@ library
                      , SAT.Util
                      , SAT.Variables
                      , SAT.IntSolver.IPASIR.TH
+                     , SAT.PicoSAT
   other-modules:       SAT.Types.LBool
                      , SAT.Types.Lit
 
 test-suite sat-test
-  extra-libraries:     ipasircryptominisat5
-                     , cryptominisat5
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   default-language:    Haskell2010
   main-is:             Spec.hs
-  other-modules:       Spec.SAT.IntSolver.IPASIR.TH
+  other-modules:       Spec.SAT.IntSolver
   build-depends:       base
                      , sat
                      , transformers
