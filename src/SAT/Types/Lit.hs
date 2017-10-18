@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveFunctor, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 module SAT.Types.Lit
     ( Lit (..)
     , IsLit (..)
@@ -8,38 +10,28 @@ module SAT.Types.Lit
     , isLitPositive
     ) where
 
-import Data.String
-    ( IsString ( fromString )
-    )
+import GHC.Generics ( Generic )
 
-import Data.Bits
-    ( xor
-    )
+import Data.String ( IsString ( fromString ) )
 
-import Data.Functor
-    ( ($>)
-    )
+import Data.Bits ( xor )
 
-import Control.Monad
-    ( ap
-    )
+import Data.Functor ( ($>) )
+import Data.Functor.Classes
 
-import Data.Traversable
-    ( Traversable ( traverse )
-    )
+import Control.Monad ( ap )
+import Data.Traversable ( Traversable ( traverse ) )
 
-import Control.Comonad
-    ( Comonad
-        ( extract
-        , duplicate
-        )
-    )
+import Control.Comonad ( Comonad ( extract, duplicate ) )
 
 
 data Lit a
     = Pos a
     | Neg a
-        deriving (Eq, Functor)
+        deriving (Eq, Functor, Generic)
+
+instance Eq1 Lit where
+    liftEq f l r = isLitPositive l == isLitPositive r && f (extract l) (extract r)
 
 -- | We order literals first by variable, then by sign, so that dual
 -- literals are neighbors in the ordering.
@@ -61,7 +53,7 @@ instance Applicative Lit where
 instance Monad Lit where
     l >>= f = s `lit` extract l'
         where
-            s = isLitPositive l `xor` isLitPositive l'
+            s = isLitPositive l == isLitPositive l'
             l' = f $ extract l
 
 instance Comonad Lit where
@@ -72,8 +64,8 @@ instance Comonad Lit where
     duplicate (Neg a) = Neg $ Neg a
 
 instance Show a => Show (Lit a) where
-    show (Pos a) = '+' : show a
-    show (Neg a) = '-' : show a
+    show (Pos a) = "+(" ++ show a ++ ")"
+    show (Neg a) = "-(" ++ show a ++ ")"
 
 instance IsString a => IsString (Lit a) where
     fromString = return . fromString
@@ -121,3 +113,7 @@ instance IsLit Int Word where
     toLit i = lit (i > 0) $ toEnum $ (abs i) - 1
     fromLit (Pos i) =  1 + fromEnum i
     fromLit (Neg i) = -1 - fromEnum i
+
+instance IsLit (Lit a) a where
+    toLit   = id
+    fromLit = id

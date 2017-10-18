@@ -1,7 +1,14 @@
 module Main where
 
-import qualified Spec.SAT.IntSolver as IntSolver
+import Test.Tasty
+
+import Spec.SAT.Types.LBool
+import Spec.SAT.Types.Lit
 
 
-main :: IO ()
-main = IntSolver.main
+main = defaultMain Main.tests
+
+tests = testGroup "Tests"
+    [ Spec.SAT.Types.LBool.tests
+    , Spec.SAT.Types.Lit.tests
+    ]

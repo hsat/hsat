@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module SAT.Types.LBool
     ( LBool (..)
 
@@ -23,12 +24,14 @@ import Control.Applicative
         )
     )
 
+import GHC.Generics ( Generic )
+
 
 data LBool
     = LFalse
     | LUndef
     | LTrue
-        deriving (Eq, Ord, Show, Read)
+        deriving (Eq, Ord, Show, Read, Generic)
 
 instance Enum (LBool) where
     fromEnum LTrue  =  1
@@ -72,6 +75,6 @@ maybeToLBool :: Maybe Bool
 maybeToLBool = fromMaybe LUndef . fmap boolToLBool
 
 lBoolToChar :: LBool -> Char
-lBoolToChar LTrue  = '1'
-lBoolToChar LFalse = '0'
+lBoolToChar LTrue  = '+'
+lBoolToChar LFalse = '-'
 lBoolToChar LUndef = '?'
