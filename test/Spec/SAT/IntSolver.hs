@@ -1,8 +1,14 @@
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 module Spec.SAT.IntSolver ( tests ) where
-
 
 import Control.Monad.Trans.State.Lazy ( StateT )
 import Control.Monad.Trans.Class ( lift )
+import Control.Comonad ( extract )
+import System.IO.Unsafe ( unsafePerformIO )
+
+import qualified Data.Map as Map
+import Data.Maybe ( isJust )
+import Data.List ( find )
 
 import Test.Tasty
 import Test.Tasty.SmallCheck
@@ -16,13 +22,25 @@ import SAT.Types
 import SAT.Util
 import SAT.PicoSAT
 
-tests = testGroup "IntSolver" []
 
-main = evalIntSolver picoSAT $ do
-    add [ 1, 2]
-    add [-1, 2]
-    printSolve
+tests = testGroup "### IntSolver"
+    [ testProperty "solves corretly" (monadic . propSolve)
+    ]
+
+newtype Cnf = Cnf [[Lit Word]] deriving (Show, Eq)
+instance Monad m => Serial m Cnf where
+    series = Cnf <$> localDepth (+ 2) series
+
+propSolve :: Cnf -> IO (Either Reason Reason)
+propSolve (Cnf cnf) = evalIntSolver picoSAT $ do
+    addIntClauses cnf
+    res <- solve
+    return $ case res of
+        (Left conf) -> Right $ prettyConflict conf
+        (Right sol) -> if testSolution sol cnf
+            then Right "OK"
+            else Left $ prettySolution sol
+
+testSolution sol = all $ any val
   where
-    add :: [Lit Word] -> StateT PicoSAT IO ()
-    add = addIntClause
-    printSolve = lift . putStr . prettyESolution =<< solve
+    val = isJust . find (\l -> isLitPositive l == extract l ) . (traverse shrink :: Lit LBool -> [Lit Bool]) . fmap (sol Map.!)

@@ -11,6 +11,7 @@ module SAT.Util
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List ( intercalate )
+import Data.Tuple ( swap )
 import Data.Bifunctor ( bimap )
 
 import Text.PrettyPrint.Boxes
@@ -29,7 +30,7 @@ prettySolution :: Show a => Solution a -> String
 prettySolution = render . boxSolution
 
 boxSolution :: Show a => Solution a -> Box
-boxSolution = (text "Solution:" //) . vcat right . map (uncurry (<+>)) . map ( bimap (text . show) (char . lBoolToChar) ) . Map.toList
+boxSolution = (text "Solution:" //) . vcat right . map (uncurry (<+>)) . map ( swap . bimap (text . show) (char . lBoolToChar) ) . Map.toList
 
 
 prettyConflict :: Show a => Conflict a -> String

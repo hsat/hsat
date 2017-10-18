@@ -28,9 +28,7 @@ import TestUtils
 import SAT.Types
 
 
-instance Serial m a => Serial m (Lit a)
-
-tests = testGroup "Lit"
+tests = testGroup "### Lit"
     [ testGroup "Ord"
         [ testProperty "Pos a > Neg a"          propOrdSign
         , testProperty "Pos a > Pos b => a > b" (propOrdValue Pos)
@@ -90,6 +88,10 @@ tests = testGroup "Lit"
         , testGroup "fromInteger"
             [ testProperty "fromInteger = toEnum" propNumFromIntegerToEnum
             , testCase "fromInteger 0 -> error" propNumFromIntegerError
+            ]
+        , testGroup "signum"
+            [ testProperty "isLitPositive = isLitPositive . signum" propNumSignumOuter
+            , testProperty "extract . signum = signum . extract" propNumSignumInner
             ]
         ]
     , testGroup "utils"
@@ -220,7 +222,7 @@ try action = catch (Right <$> action) (\e -> return $ Left $ head $ lines (show 
 propEnumError :: IO ()
 propEnumError = do
     l <- try (evaluate $ (toEnum 0 :: Lit Word))
-    assertEqual "error" (Left "Can't transform 0 into a Lit. (function toEnum).") l
+    assertEqual "error" (Left "can not create Lit from 0") l
 
 propEnumInnerError l = monadic $ do
     i <- try (evaluate $ fromEnum (l :: Lit Int))
@@ -274,6 +276,12 @@ propNumFromIntegerToEnum i = (fromInteger i :: Lit Int) == (toEnum (fromEnum i) 
 propNumFromIntegerError = do
     (Left _) <- try (evaluate (fromInteger 0 :: Lit Int))
     return ()
+
+propNumSignumOuter :: Lit Int -> Bool
+propNumSignumOuter l = isLitPositive l == isLitPositive (signum l)
+
+propNumSignumInner :: Lit Int -> Bool
+propNumSignumInner l = extract (signum l) == signum (extract l)
 
 
 propIsLitIntWordId1 :: Int -> Bool

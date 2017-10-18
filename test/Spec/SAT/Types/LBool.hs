@@ -11,7 +11,7 @@ import SAT.Types
 
 instance Monad m => Serial m LBool
 
-tests = testGroup "LBool"
+tests = testGroup "### LBool"
     [ testGroup "Enum"
         [ testProperty "transitive" enumTransitive
         , testCase "fromEnum" $ do

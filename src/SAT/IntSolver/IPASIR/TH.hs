@@ -212,14 +212,15 @@ ipasirSolveImpl ipasir_solve ipasir_val ipasir_failed solver = do
     vars :: (Enum a, Num a) => [a]
     vars = [1 .. (toEnum $ fromEnum $ nVars solver + 1)]
     readAll op = mapM (\ i -> withForeignPtr (ptr solver) (`op` i)) vars
+    assocVars = zip (map (\a -> a-1) vars)
     readSolution :: IO (Solution Word)
     readSolution = do
         rawSolution <- readAll ipasir_val
-        return $ Map.fromList $ zip vars $ map litToLBool rawSolution
+        return $ Map.fromList $ assocVars $ map litToLBool rawSolution
     readConflict :: IO (Conflict Word)
     readConflict = do
         rawConflict <- readAll ipasir_failed
-        return $ Set.fromList $ map fst $ filter ((== 1) . snd) $ zip vars rawConflict
+        return $ Set.fromList $ map fst $ filter ((== 1) . snd) $ assocVars rawConflict
     litToLBool i
         | i > 0     = LTrue
         | i < 0     = LFalse

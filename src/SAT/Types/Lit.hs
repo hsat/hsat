@@ -101,7 +101,7 @@ instance (Enum a) => Enum (Lit a) where
                 then 1
                 else -1
 
-    toEnum 0 = error "Can't transform 0 into a Lit. (function toEnum)."
+    toEnum 0 = error "can not create Lit from 0"
     toEnum x = lit (x>0) (toEnum $ abs x)
 
 instance (Num a) => Num (Lit a) where
@@ -110,7 +110,7 @@ instance (Num a) => Num (Lit a) where
     abs = Pos . abs . extract
     signum = fmap signum
     negate = negLit . fmap negate
-    fromInteger 0 = error "can not create Lit without sign"
+    fromInteger 0 = error "can not create Lit from 0"
     fromInteger i = lit (i > 0) (fromInteger $ abs i)
 
 class IsLit a l where
@@ -118,7 +118,7 @@ class IsLit a l where
     fromLit :: Lit l -> a
 
 instance IsLit Int Word where
-    toLit 0 = error "can not create Lit Word from 0"
+    toLit 0 = error "can not create Lit from 0"
     toLit i = lit (i > 0) $ toEnum $ (abs i) - 1
     fromLit (Pos i) =  1 + fromEnum i
     fromLit (Neg i) = -1 - fromEnum i
