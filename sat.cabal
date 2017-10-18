@@ -25,7 +25,7 @@ library
   c-sources:           c-sources/picosat.c
                        c-sources/version.c
                        c-sources/ipasirpicosatglue.c
-  ghc-options:         -optc=-Wall -optc=-Wextra -optc=-DNDEBUG -optc=-O3
+  ghc-options:         -Wall -O3 -optc=-Wall -optc=-Wextra -optc=-DNDEBUG -optc=-O3
   hs-source-dirs:      src
   build-depends:       base >= 4.7 && < 5
                      , comonad
@@ -53,6 +53,7 @@ test-suite sat-test
   main-is:             Spec.hs
   other-modules:       Spec.SAT.Types.LBool
                      , Spec.SAT.Types.Lit
+                     , TestUtils
   build-depends:       base
                      , sat
                      , transformers

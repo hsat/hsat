@@ -29,8 +29,8 @@ evalIntSolver solverProxy action = evalStateT action =<< newIntSolver solverProx
 
 class IntSolver s where
     newIntSolver :: Proxy s -> IO s
-    addIntClause :: (Foldable f, IsLit a Word) => f a -> StateT s IO ()
-    addIntClauses :: (Foldable f, Foldable g, IsLit a Word) => f (g a) -> StateT s IO ()
+    addIntClause :: (Foldable f) => f (Lit Word) -> StateT s IO ()
+    addIntClauses :: (Foldable f, Foldable g) => f (g (Lit Word)) -> StateT s IO ()
     addIntClauses = traverse_ addIntClause
     numVars :: StateT s IO Word
     solve :: StateT s IO (ESolution Word)

@@ -13,6 +13,7 @@ import Control.Exception ( catch, SomeException, evaluate )
 
 import Data.String ( IsString ( fromString ) )
 import Data.List ( sort )
+import Data.Int ( Int8 )
 
 import Data.Functor.Identity ( Identity(..) )
 import Data.Functor.Compose  ( Compose (..) )
@@ -65,6 +66,31 @@ tests = testGroup "Lit"
         , testCase     "toEnum 0 -> error" propEnumError
         , testProperty "extract . fromEnum =< 0 -> error" propEnumInnerError
         , testProperty "isLitPositive . toEnum == >0" propEnumSign
+        ]
+    , testGroup "Num (Lit a)"
+        [ testGroup "+"
+            [ testProperty "(a + b) + c == a + (b + c)" propNumAddAssoc
+            , testProperty "a + b == b + a" propNumAddCommut
+            , testProperty "a - a == return 0" propNumAddInverse
+            ]
+        , testGroup "*"
+            [ testProperty "(a * b) * c == a * (b * c)" propNumMultAssoc
+            , testProperty "a * b == b * a" propNumMultCommut
+            , testProperty "a * 1 == a" propNumMultNeutral
+            ]
+        , testProperty "a * (b + c) == (a * b) + (a * c)" propNumDist
+        , testGroup "abs"
+            [ testProperty "isLitPositive (abs a)" propNumAbsSign
+            , testProperty "extract . abs = abs . extract" propNumAbsValue
+            ]
+        , testGroup "negate"
+            [ testProperty "isLitPositive . negate = not . isLitPositive" propNumNegateSign
+            , testProperty "extract . negate = negate . extract" propNumNegateValue
+            ]
+        , testGroup "fromInteger"
+            [ testProperty "fromInteger = toEnum" propNumFromIntegerToEnum
+            , testCase "fromInteger 0 -> error" propNumFromIntegerError
+            ]
         ]
     , testGroup "utils"
         [ testProperty "lit" propUtilLit
@@ -205,6 +231,49 @@ propEnumInnerError l = monadic $ do
 propEnumSign :: Int -> Bool
 propEnumSign 0 = True
 propEnumSign i = isLitPositive (toEnum i :: Lit Word) == (i > 0)
+
+
+propNumAddAssoc :: Lit Int -> Lit Int -> Lit Int -> Bool
+propNumAddAssoc a b c = (a + b) + c == a + (b + c)
+
+propNumAddCommut :: Lit Int -> Lit Int -> Bool
+propNumAddCommut a b = a + b == b + a
+
+propNumAddInverse :: Lit Int -> Bool
+propNumAddInverse a = a + (-a) == return 0
+
+
+propNumMultAssoc :: Lit Int -> Lit Int -> Lit Int -> Bool
+propNumMultAssoc a b c = (a * b) * c == a * (b * c)
+
+propNumMultCommut :: Lit Int -> Lit Int -> Bool
+propNumMultCommut a b = a * b == b * a
+
+propNumMultNeutral :: Lit Int -> Bool
+propNumMultNeutral a = a * 1 == a
+
+propNumDist :: Lit Int -> Lit Int -> Lit Int -> Bool
+propNumDist a b c = a * (b + c) == (a * b) + (a * c)
+
+propNumAbsSign :: Lit Int8 -> Bool
+propNumAbsSign a = isLitPositive (abs a)
+
+propNumAbsValue :: Lit Int8 -> Bool
+propNumAbsValue a = extract (abs a) == abs (extract a)
+
+propNumNegateSign :: Lit Int8 -> Bool
+propNumNegateSign a = isLitPositive (-a) == not (isLitPositive a)
+
+propNumNegateValue :: Lit Int8 -> Bool
+propNumNegateValue a = extract (-a) == -(extract a)
+
+propNumFromIntegerToEnum :: Integer -> Bool
+propNumFromIntegerToEnum 0 = True
+propNumFromIntegerToEnum i = (fromInteger i :: Lit Int) == (toEnum (fromEnum i) :: Lit Int)
+
+propNumFromIntegerError = do
+    (Left _) <- try (evaluate (fromInteger 0 :: Lit Int))
+    return ()
 
 
 propIsLitIntWordId1 :: Int -> Bool
