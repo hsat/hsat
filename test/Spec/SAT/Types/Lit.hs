@@ -1,22 +1,15 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 module Spec.SAT.Types.Lit ( tests ) where
 
-import Control.Comonad
-    ( Comonad
-        ( extract
-        , extend
-        , duplicate
-        )
-    )
-
+import Control.Comonad ( Comonad ( extract, extend, duplicate ) )
 import Control.Exception ( catch, SomeException, evaluate )
+
+import Data.Functor.Identity ( Identity(..) )
+import Data.Functor.Compose  ( Compose (..) )
 
 import Data.String ( IsString ( fromString ) )
 import Data.List ( sort )
 import Data.Int ( Int8 )
-
-import Data.Functor.Identity ( Identity(..) )
-import Data.Functor.Compose  ( Compose (..) )
 
 import Test.Tasty
 import Test.Tasty.SmallCheck

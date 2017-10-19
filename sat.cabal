@@ -38,10 +38,10 @@ library
   exposed-modules:     SAT
                      , SAT.Solver
                      , SAT.IntSolver
+                     , SAT.IntSolver.TH
                      , SAT.Types
                      , SAT.Util
                      , SAT.Variables
-                     , SAT.IntSolver.IPASIR.TH
                      , SAT.PicoSAT
   other-modules:       SAT.Types.LBool
                      , SAT.Types.Lit

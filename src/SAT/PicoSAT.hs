@@ -1,13 +1,14 @@
+-- | Provides a binding to PicoSAT.
 {-# LANGUAGE TemplateHaskell #-}
 module SAT.PicoSAT
     ( picoSAT
     , PicoSAT
     ) where
 
-import SAT.IntSolver.IPASIR.TH
+import SAT.IntSolver.TH
 
-import Foreign.Ptr ( Ptr )
-import Foreign.C.Types ( CInt( CInt ), CChar ( CChar ) )
+import Foreign.C.Types ( CInt( CInt ) )
+
 
 foreign import ccall unsafe "ipasir.h  ipasir_signature" ipasir_signature :: IpasirSignature
 foreign import ccall unsafe "ipasir.h  ipasir_init"      ipasir_init      :: IpasirInit

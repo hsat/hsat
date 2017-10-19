@@ -1,31 +1,14 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-}
 module SAT.Solver where
 
-import Data.Proxy
-    ( Proxy
-    )
-
-import Data.Set ( Set )
+import Data.Proxy ( Proxy )
 import qualified Data.Set as Set
+import Data.Either ( rights, lefts )
 
-import Data.Either
-    ( rights
-    , lefts
-    )
+import Control.Monad.Trans.State.Lazy ( StateT )
 
-import Control.Monad.Trans.State.Lazy
-    ( StateT 
-    )
-
-import SAT.Types
-    ( ESolution
-    )
-
-import SAT.Variables
-    ( Var
-    , VarCache
-    , emptyCache
-    )
+import SAT.Types ( ESolution )
+import SAT.Variables ( Var, VarCache, emptyCache )
 
 
 class Solver s where

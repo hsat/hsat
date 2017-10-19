@@ -4,24 +4,12 @@ module SAT.IntSolver
     , evalIntSolver
     ) where
 
-import Control.Monad.Trans.State.Lazy
-    ( StateT
-    , evalStateT
-    )
+import Data.Proxy ( Proxy )
 
-import Data.Foldable
-    ( traverse_
-    )
+import Control.Monad.Trans.State.Lazy ( StateT, evalStateT )
+import Data.Foldable ( traverse_ )
 
-import Data.Proxy
-    ( Proxy
-    )
-
-import SAT.Types
-    ( ESolution
-    , Lit
-    , IsLit
-    )
+import SAT.Types ( ESolution, Lit )
 
 
 evalIntSolver :: IntSolver s => Proxy s -> StateT s IO a -> IO a

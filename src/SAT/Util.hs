@@ -10,7 +10,6 @@ module SAT.Util
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.List ( intercalate )
 import Data.Tuple ( swap )
 import Data.Bifunctor ( bimap )
 

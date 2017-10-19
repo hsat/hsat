@@ -14,8 +14,6 @@ import GHC.Generics ( Generic )
 
 import Data.String ( IsString ( fromString ) )
 
-import Data.Bits ( xor )
-
 import Data.Functor ( ($>) )
 import Data.Functor.Classes
 
