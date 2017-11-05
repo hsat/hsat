@@ -34,13 +34,13 @@ instance Monad m => Serial m Cnf where
 propSolve :: Cnf -> IO (Either Reason Reason)
 propSolve (Cnf cnf) = evalIntSolver picoSAT $ do
     addIntClauses cnf
-    res <- solve
+    res <- solveInt
     return $ case res of
-        (Left conf) -> Right $ prettyConflict conf
-        (Right sol) -> if testSolution sol cnf
+        (ESolution sol) -> if testSolution sol cnf
             then Right "OK"
             else Left $ prettySolution sol
+        (EConflict conf) -> Right $ prettyConflict conf
 
 testSolution sol = all $ any val
   where
-    val = isJust . find (\l -> isLitPositive l == extract l ) . (traverse shrink :: Lit LBool -> [Lit Bool]) . fmap (sol Map.!)
+    val = isJust . find (\l -> isLitPositive l == extract l ) . (traverse shrink :: Lit LBool -> [Lit Bool]) . fmap (solutionAsMap sol Map.!)

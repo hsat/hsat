@@ -1,24 +1,10 @@
-{-# LANGUAGE FlexibleContexts #-}
+-- | Contains typeclasses and utility functions for SAT-Solvers that operate on integer Literals.
+-- To be able to use such a solver you have to choose a concrete implementation.
+-- This package contains bindings for PicoSAT through 'SAT.PicoSAT'.
 module SAT.IntSolver
-    ( IntSolver(..)
-    , evalIntSolver
+    ( module SAT.IntSolver.Base
+    , module SAT.IntSolver.Util
     ) where
 
-import Data.Proxy ( Proxy )
-
-import Control.Monad.Trans.State.Lazy ( StateT, evalStateT )
-import Data.Foldable ( traverse_ )
-
-import SAT.Types ( ESolution, Lit )
-
-
-evalIntSolver :: IntSolver s => Proxy s -> StateT s IO a -> IO a
-evalIntSolver solverProxy action = evalStateT action =<< newIntSolver solverProxy
-
-class IntSolver s where
-    newIntSolver :: Proxy s -> IO s
-    addIntClause :: (Foldable f) => f (Lit Word) -> StateT s IO ()
-    addIntClauses :: (Foldable f, Foldable g) => f (g (Lit Word)) -> StateT s IO ()
-    addIntClauses = traverse_ addIntClause
-    numVars :: StateT s IO Word
-    solve :: StateT s IO (ESolution Word)
+import SAT.IntSolver.Base
+import SAT.IntSolver.Util

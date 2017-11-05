@@ -45,6 +45,8 @@ library
                      , SAT.PicoSAT
   other-modules:       SAT.Types.LBool
                      , SAT.Types.Lit
+                     , SAT.IntSolver.Base
+                     , SAT.IntSolver.Util
 
 test-suite sat-test
   type:                exitcode-stdio-1.0

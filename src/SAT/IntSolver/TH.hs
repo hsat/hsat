@@ -44,12 +44,12 @@
 --         [e| ipasir_val       |]
 --         [e| ipasir_failed    |])
 -- @
---     
 
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric #-}
 module SAT.IntSolver.TH
     ( ffiSolver
     , ipasirSolver
@@ -57,6 +57,7 @@ module SAT.IntSolver.TH
     , ipasirNewIntSolver
     , ipasirAddIntClause
     , ipasirSolve
+
     , unsafeReadCString
     
     , IpasirSignature
@@ -69,20 +70,27 @@ module SAT.IntSolver.TH
     , IpasirFailed
     ) where
 
+import GHC.Generics ( Generic )
+
 import Data.Char ( toLower )
 import Data.Proxy ( Proxy ( Proxy ) )
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.Vector as Vec
 
 import Data.Foldable ( mapM_, toList )
-
-import Control.Monad.Trans.State.Lazy ( get, put )
+import Control.Monad.Trans.State.Lazy ( StateT(..), get )
 import Control.Monad.Trans.Class ( lift )
+import Control.Comonad ( extract )
 
 import System.IO.Unsafe ( unsafePerformIO )
-import Language.Haskell.TH.Syntax hiding ( Lit, lift )
-import Language.Haskell.TH hiding ( Lit )
+import Language.Haskell.TH
+    ( Q, Exp (..), Dec (..), Type (..), Pat (..)
+    , Name, mkName, newName, conT, conE
+    , Con ( NormalC ), Body ( NormalB ), Clause ( Clause )
+    , Bang ( Bang )
+    , SourceUnpackedness(NoSourceUnpackedness)
+    , SourceStrictness(NoSourceStrictness)
+    )
 
 import Foreign.Ptr ( Ptr, FunPtr )
 import Foreign.ForeignPtr ( ForeignPtr, newForeignPtr, withForeignPtr )
@@ -90,8 +98,11 @@ import Foreign.C.Types ( CInt )
 import Foreign.C.String ( CString, peekCString )
 
 import SAT.IntSolver
-import SAT.Types ( ESolution, Solution, Conflict, isLitPositive, LBool (..), IsLit (..) )
-import Control.Comonad ( extract )
+import SAT.Types
+    ( ESolution(..), Solution(..), Conflict(..)
+    , LBool (..), Lit, IsLit ( fromLit )
+    )
+
     
 -- |
 -- The ipasir interface defines three states a solver may be in. The interface itself
@@ -118,12 +129,6 @@ type IpasirSolve = Ptr () -> IO CInt
 type IpasirVal = Ptr () -> CInt -> IO CInt
 -- | Signature for 'ipasir_failed' ffi function.
 type IpasirFailed = Ptr () -> CInt -> IO CInt
-
--- | class that provides easier ways to interact with generated solver datatypes.
-class (IntSolver a, Show a) => IpasirSolver a where
-    nVars :: a -> Word
-    ptr :: a -> ForeignPtr ()
-    ctr :: Word -> ForeignPtr () -> a
 
 -- | Generates a new datatype with the given name and  implementation of 'IntSolver'
 -- from given ipasir functions.
@@ -197,6 +202,7 @@ ipasirSolver name
         (ffiSolverShow [e| unsafeReadCString $ipasir_signature |])
         (ipasirNewIntSolver ipasir_init ipasir_release)
         (ipasirAddIntClause ipasir_add)
+        (ipasirAddIntAssumption ipasir_assume)
         (ipasirSolve ipasir_solve ipasir_val ipasir_failed)
 
 -- | Create an 'IntSolver' implementation from given name and implementations for 'show', 'newIntSolver', 'addIntClause' and 'solve'
@@ -204,81 +210,63 @@ ipasirSolver name
 -- will result in the following code.
 --
 -- @
---    data MySolver = MySolver Word (ForeignPtr ())
---    mySolver = Proxy :: Proxy MySolver
---    instance IpasirSolver MySolver where
---        nVars (MySolver n _) = n
---        ptr (MySolver _ p) = p
---        ctr = MySolver
---    instance Show MySolver where
---        show = ffiShow . ptr
---    instance IntSolver MySolver where
---        newIntSolver _ = ctr 0 <$> ffiNewIntSolver
---        addIntClause c = do
---            solver <- get
---            newSolver <- lift (ffiAddIntClause solver c)
---            put newSolver
---        numVars = nVars <$> get
---        solve = do
---            solver <- get
---            lift ( ffiSolve solver )
+--    data MySolver = MySolver deriving (Eq, Ord, Show)
+--    data MySolverIntState = MySolverIntState Word ForeignPtr ()
+--        deriving (Eq, Ord)
+--    instance Show MySolverIntState where
+--        show (MySolverIntState _ ptr) = ffiShow ptr
+--    instance IntSolver MySolverIntState where
+--        type Marker MySolverIntState = MySolver
+--        newIntSolver _ = MySolverIntState 0 <$> ffiNewIntSolver
+--        addIntClause c = modifyM (`ffiAddIntClause` c)
+--        addIntAssumption a = modifyM (`ffiAddAssumption` a)
+--        numIntVars = do
+--            (MySolverState nVars _) <- get
+--            return nVars
+--        solveInt = lift ( ffiSolve solver ) =<< get
 -- @
 --        
 ffiSolver :: String -- ^ Name of the solver
           -> Q Exp  -- ^ implementation of 'show'
           -> Q Exp  -- ^ implementation of 'newIntSolver'
           -> Q Exp  -- ^ implementation of 'addIntClause'
+          -> Q Exp  -- ^ implementation of 'addIntAssumption'
           -> Q Exp  -- ^ implementation of 'solve'
           -> Q [Dec]
-ffiSolver name ffiShow ffiNewIntSolver ffiAddClause ffiSolve = do
-    let (dataName, ctr, extractNumVars, extractPtr, solverData) = createSolverData name
+ffiSolver name ffiShow ffiNewIntSolver ffiAddIntClause ffiAddAssumption ffiSolve = do
+    let markerType = conT $ mkName name
+    let markerData = createData name [] ["Eq", "Ord", "Show", "Generic"]
+    ptrType <- [t| ForeignPtr () |]
+    let intStateName = "Int" ++ name ++ "State"
+    let intStateData = createData intStateName [ConT ''Word, ptrType] ["Eq", "Ord", "Generic"]
     impl <- [d|
 
-            instance Show $(conT dataName) where
-                show = $ffiShow . $extractPtr
-            instance IpasirSolver $(conT dataName) where
-                nVars = $extractNumVars
-                ptr = $extractPtr
-                ctr = $ctr
-            instance IntSolver $(conT dataName) where
-                newIntSolver _ = $ctr 0 <$> $ffiNewIntSolver
-                addIntClause c = do
-                    solver <- get
-                    newSolver <- lift ($ffiAddClause solver c)
-                    put newSolver
-                numVars = nVars <$> get
-                solve = do
-                    solver <- get
-                    lift ( $ffiSolve solver )
+            instance Show $(markerType) where
+                show = $ffiShow . genericFst
+            instance IntSolver $(markerType) where
+                type (Marker $(markerType)) = $(conT $ mkName intStateName)
+                newIntSolver _ = do
+                    ptr <- $ffiNewIntSolver
+                    retun $ genericCtr 0 ptr
+                addIntClause c = StateT (\ s -> (\ s' -> ((),s')) <$> $ffiAddIntClause s c)
+                addIntAssumption a = StateT (\ s -> (\ s' -> ((),s')) <$> $ffiAddAssumption s a)
+                numIntVars = fst <$> get
+                solveInt = lift ( $ffiSolve solver ) =<< get
 
         |]
     
-    return $ solverProxy name : solverData : impl
+    return $ markerData : intStateData : impl
 
-createSolverData :: String -> (Name, ExpQ, Q Exp, Q Exp, Dec)
-createSolverData name = (dataName, ctr, field0, field1, dec)
+createData :: String -> [Type] -> [String] -> Dec
+createData name types classes = DataD [] dataName [] Nothing
+    [ NormalC dataName (bang <$> types) ] derive
   where
     dataName = mkName name
-    ctr      = conE dataName
-    field0   = nthField dataName 2 0
-    field1   = nthField dataName 2 1
-    nb = (Bang NoSourceUnpackedness NoSourceStrictness,)
-    -- create 'data MySolver = MySolver Word (Ptr ())'
-    dec = DataD [] dataName [] Nothing [
-        NormalC dataName [nb $ ConT ''Word, nb $ AppT (ConT ''ForeignPtr) (ConT ''())]] [
-        ConT $ mkName "Eq"]
+    bang = (Bang NoSourceUnpackedness NoSourceStrictness, )
+    derive = [ ConT $ mkName cls | cls <- classes]
 
-    -- create '(\ (Ctr _ ... x ... _) -> x)'
-    nthField name max n = do
-        x <- newName "x"
-        return $ LamE [ConP name (replicate n WildP ++ VarP x : replicate (max - n - 1) WildP)] $ VarE x
-
--- mySolver = Proxy :: Proxy MySolver
-solverProxy name = FunD (mkName $ uncap name) [Clause [] (NormalB proxyExp) []]
-  where
-    -- Proxy :: Proxy MySolver
-    proxyExp = SigE (ConE 'Proxy) (AppT (ConT ''Proxy) (ConT $ mkName name))
-    uncap (c:cx) = toLower c : cx
+genericCtr :: Generic a => Word -> ForeignPtr () -> a
+genericCtr nVars ptr = to $ M1 $ M1 (M1 (K1 nVars) :*: M1 (K1 ptr))
 
 -- | create a 'show' implmenetation for a Solver that consist of the provided solver signature and the hex value of its pointer.
 -- @$(ffiSolverShow signature)@
@@ -286,7 +274,7 @@ solverProxy name = FunD (mkName $ uncap name) [Clause [] (NormalB proxyExp) []]
 -- @\ptr -> signature ++ "@" ++ show ptr@
 ffiSolverShow :: Q Exp -> Q Exp
 ffiSolverShow ipasir_signature = [e|
-        \ptr -> $ipasir_signature ++ "@" ++ show ptr
+        \sPtr -> $ipasir_signature ++ "@" ++ show sPtr
     |]
 
 -- | Util function for turning signatures obtained through ffi into 'String'.
@@ -318,20 +306,39 @@ ipasirAddIntClause ipasir_add = [e|
         ipasirAddIntClauseImpl $ipasir_add
     |]
 
-ipasirAddIntClauseImpl :: (Foldable f, IsLit a Word, IpasirSolver s)
-                       => IpasirAdd -- ^ 'ipasir_add' ffi binding
-                       -> s         -- ^ the solver
-                       -> f a       -- ^ clause
-                       -> IO s      -- ^ the new solver
-ipasirAddIntClauseImpl ipasir_add solver rawClause = do
-    let clause = toLit <$> toList rawClause
-    mapM_ (add . litToInt) clause
+ipasirAddIntClauseImpl :: Foldable f
+                       => IpasirAdd                -- ^ 'ipasir_add' ffi binding
+                       -> (Word, ForeignPtr ())    -- ^ the solver
+                       -> f (Lit Word)             -- ^ clause
+                       -> IO (Word, ForeignPtr ()) -- ^ the new solver
+ipasirAddIntClauseImpl ipasir_add (nVars, ptr) clause = do
+    mapM_ (add . fromLit) clause
     add 0
-    let newNumVars = maximum $ nVars solver : map extract clause 
-    return $ ctr newNumVars $ ptr solver
+    return (newNumVars, ptr)
   where
-    litToInt lit = (fromEnum $ extract lit + 1) * if isLitPositive lit then 1 else -1
-    add i = withForeignPtr (ptr solver) (`ipasir_add` toEnum i) 
+    newNumVars = maximum $ nVars : map extract (toList clause)
+    add i = withForeignPtr ptr (`ipasir_add` toEnum i) 
+
+-- | Create an 'addIntAssumption' implementation from 'ipasir_assume' ffi function.
+-- 
+-- 'nVars' of the new solver will be increased if the provided literal is higher
+-- than the former 'nVars'.
+ipasirAddIntAssumption :: Q Exp -> Q Exp
+ipasirAddIntAssumption ipasir_assume = [e|
+        ipasirAddIntAssumptionImpl $ipasir_assume
+    |]
+
+ipasirAddIntAssumptionImpl :: Generic s
+                           => IpasirAdd -- ^ 'ipasir_assume' ffi binding
+                           -> s         -- ^ the solver
+                           -> Lit Word  -- ^ Assumption
+                           -> IO s      -- ^ the new solver
+ipasirAddIntAssumptionImpl ipasir_assume solver l = do
+    add $ fromLit l
+    return $ genericCtr newNumVars $ genericPtr solver
+  where
+    newNumVars = max (genericNVars solver) (extract l)
+    add i = withForeignPtr (genericPtr solver) (`ipasir_assume` toEnum i) 
 
 -- | Creates a 'solve' implementation from 'ipasir_solve', 'ipasir_val' and 'ipasir_failed' ffi functions.
 -- This assumes that all added clauses are terminated with a '0' and that the internal solver state is not
@@ -348,33 +355,32 @@ ipasirSolve ipasir_solve ipasir_val ipasir_failed = [e|
         ipasirSolveImpl $ipasir_solve $ipasir_val $ipasir_failed
     |]
 
-ipasirSolveImpl :: IpasirSolver s
-                => IpasirSolve  -- ^ 'ipasir_solve'
-                -> IpasirVal    -- ^ 'ipasir_val'
-                -> IpasirFailed -- ^ 'ipasir_failed'
-                -> s            -- ^ the solver
+ipasirSolveImpl :: IpasirSolve           -- ^ 'ipasir_solve'
+                -> IpasirVal             -- ^ 'ipasir_val'
+                -> IpasirFailed          -- ^ 'ipasir_failed'
+                -> (Word, ForeignPtr ()) -- ^ the solver
                 -> IO (ESolution Word)
-ipasirSolveImpl ipasir_solve ipasir_val ipasir_failed solver = do
-    sat <- withForeignPtr (ptr solver) ipasir_solve
+ipasirSolveImpl ipasir_solve ipasir_val ipasir_failed (nVars, ptr) = do
+    sat <- withForeignPtr ptr ipasir_solve
     case sat of
-        10 -> Right <$> readSolution
-        20 -> Left  <$> readConflict
+        10 -> ESolution <$> readSolution
+        20 -> EConflict <$> readConflict
         _  -> error $ "ipasir_solve returned unexpected result: " ++ show sat
   where
     vars :: (Enum a, Num a) => [a]
-    vars = [1 .. (toEnum $ fromEnum $ nVars solver + 1)]
-    readAll op = mapM (\ i -> withForeignPtr (ptr solver) (`op` i)) vars
+    vars = [1 .. (toEnum $ fromEnum $ nVars + 1)]
+    readAll op = mapM (\ i -> withForeignPtr ptr (`op` i)) vars
     assocVars = zip (map (\a -> a-1) vars)
 
     readSolution :: IO (Solution Word)
     readSolution = do
         rawSolution <- readAll ipasir_val
-        return $ Map.fromList $ assocVars $ map litToLBool rawSolution
+        return $ Solution $ Vec.fromList $ assocVars $ map litToLBool rawSolution
 
     readConflict :: IO (Conflict Word)
     readConflict = do
         rawConflict <- readAll ipasir_failed
-        return $ Set.fromList $ map fst $ filter ((== 1) . snd) $ assocVars rawConflict
+        return $ Conflict $ Vec.fromList $ map fst $ filter ((== 1) . snd) $ assocVars rawConflict
     litToLBool i
         | i > 0     = LTrue
         | i < 0     = LFalse

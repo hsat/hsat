@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, KindSignatures, AllowAmbiguousTypes #-}
 module SAT.Solver where
 
 import Data.Proxy ( Proxy )
@@ -11,9 +11,12 @@ import SAT.Types ( ESolution )
 import SAT.Variables ( Var, VarCache, emptyCache )
 
 
-class Solver s where
-    newSolver :: Proxy s -> IO (s v)
-    solve :: StateT (s v) IO (ESolution v)
+type SolverAction s v t = StateT ((SolverState s) v) IO t
+
+class Solver (s :: * -> *) where
+    type SolverState s :: * -> *
+    newSolver :: Proxy s -> IO ((SolverState s) v)
+    solve :: SolverAction s v (ESolution v)
 
 class (Ord (VariableType c)) => HasVariables c where
     {-# MINIMAL allVariables #-}
