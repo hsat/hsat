@@ -50,16 +50,17 @@ library
                      , SAT.IntSolver.Base
                      , SAT.IntSolver.Util
 
-test-suite sat-test
+test-suite hsat-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   default-language:    Haskell2010
   main-is:             Spec.hs
-  other-modules:       Spec.SAT.Types.LBool
+  other-modules:       Spec.SAT.IntSolver
+                     , Spec.SAT.Types.LBool
                      , Spec.SAT.Types.Lit
                      , TestUtils
   build-depends:       base
-                     , sat
+                     , hsat
                      , containers
                      , transformers
                      , comonad
