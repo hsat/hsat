@@ -1,5 +1,8 @@
+-- | Provides means to map variables represented as @Word@ by an @IntSolver@ to any representation.
+-- This is done through the @VarCache@ that augments an @IntSolver@
 module SAT.Variables
     ( Var
+    , HelperVar
     , VarCache
     , emptyCache
     , intToVar
@@ -21,8 +24,10 @@ import qualified Data.Map as Map
 
 import Data.Maybe ( fromMaybe )
 
-
-type Var l = Either Word l
+-- | A helper variable
+type HelperVar = Word
+-- | An augmented variable
+type Var l = Either HelperVar l
 
 -- | 
 -- A VarCache manages a mapping between a chosen variable label type and

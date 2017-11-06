@@ -1,4 +1,5 @@
-module SAT
+-- | Exposes all relevant modules of this package at once.
+module SAT.All
     ( module SAT.Types
     , module SAT.IntSolver
     , module SAT.Solver

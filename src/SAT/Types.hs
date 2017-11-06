@@ -1,5 +1,5 @@
 -- | Provides Types used by 'SAT'.
-{-# LANGUAGE DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving, DeriveGeneric, StandaloneDeriving #-}
+{-# LANGUAGE DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving, DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -50,6 +50,7 @@ newtype Solution v = Solution (Vector (v, LBool)) deriving
     , Generic
     )
 
+-- | View @Solution@ as @Map@
 solutionAsMap :: Ord v => Solution v -> Map v LBool
 solutionAsMap (Solution v) = Map.fromList $ toList v
 
@@ -100,6 +101,7 @@ newtype Conflict v = Conflict (Vector v) deriving
     , Generic
     )
 
+-- | View @Conflict@ as @Set@
 conflictAsSet :: Ord v => Conflict v -> Set v
 conflictAsSet (Conflict v) = Set.fromList $ toList v
 

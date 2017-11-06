@@ -1,3 +1,4 @@
+-- | Provides a common interface for incremental SAT solvers that accept custom representations of variables and clauses.
 {-# LANGUAGE TypeFamilies, FlexibleContexts, KindSignatures, AllowAmbiguousTypes #-}
 module SAT.Solver where
 
@@ -10,16 +11,21 @@ import Control.Monad.Trans.State.Lazy ( StateT )
 import SAT.Types ( ESolution )
 import SAT.Variables ( Var, VarCache, emptyCache )
 
+-- | An action performed by a @Solver@.
+type SolverAction s t = StateT s IO t
 
-type SolverAction s v t = StateT ((SolverState s) v) IO t
-
+-- | A SAT solver.
 class Solver (s :: * -> *) where
-    type SolverState s :: * -> *
-    newSolver :: Proxy s -> IO ((SolverState s) v)
-    solve :: SolverAction s v (ESolution v)
 
+    -- | create a new, empty solver.
+    newSolver :: Proxy s -> IO (s v)
+    -- | find a solution for alle added clauses and assumptions.
+    -- This will clear all previous assumptions.
+    solve :: SolverAction (s v) (ESolution v)
+
+-- | Something that provides contains.
 class (Ord (VariableType c)) => HasVariables c where
-    {-# MINIMAL allVariables #-}
+    {-# MINIMAL allVariables | (allLabels, allHelpers) #-}
     -- | Defines what type variables of @c@ have
     type VariableType c
 
@@ -27,6 +33,7 @@ class (Ord (VariableType c)) => HasVariables c where
     -- new helpers may be constructed using the @VarCache@.
     -- if @c@ has multiple occurances of a variable it has to be included multiple times in the result.
     allVariables :: c -> VarCache (VariableType c) -> [Var (VariableType c)]
+    allVariables c vc = (Right <$> allLabels c) ++ (Left <$> allHelpers c vc)
     -- | Extract all labels (variables that aren't helpers) from @c@
     -- if @c@ has multiple occurances of a variable it has to be included multiple times in the result.
     allLabels :: c -> [VariableType c]

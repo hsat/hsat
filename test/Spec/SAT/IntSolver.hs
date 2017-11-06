@@ -32,7 +32,7 @@ instance Monad m => Serial m Cnf where
     series = Cnf <$> localDepth (+ 2) series
 
 propSolve :: Cnf -> IO (Either Reason Reason)
-propSolve (Cnf cnf) = evalIntSolver picoSAT $ do
+propSolve (Cnf cnf) = evalIntSolver intPicoSAT $ do
     addIntClauses cnf
     res <- solveInt
     return $ case res of

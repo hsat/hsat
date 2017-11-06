@@ -1,12 +1,21 @@
 -- | Provides a binding to PicoSAT.
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveGeneric #-}
 module SAT.PicoSAT
-    ( picoSAT
-    , PicoSAT
+    ( IntPicoSAT
+    , intPicoSAT
     ) where
 
-import SAT.IntSolver.TH
+import GHC.Generics ( Generic )
 
+import Data.Proxy (Proxy(Proxy))
+
+import Control.Monad.Trans.State.Lazy ( get )
+
+import SAT.IntSolver
+import SAT.IntSolver.IPASIR
+
+import Foreign.ForeignPtr ( ForeignPtr )
 import Foreign.C.Types ( CInt( CInt ) )
 
 
@@ -19,12 +28,20 @@ foreign import ccall unsafe "ipasir.h  ipasir_solve"     ipasir_solve     :: Ipa
 foreign import ccall unsafe "ipasir.h  ipasir_val"       ipasir_val       :: IpasirVal
 foreign import ccall unsafe "ipasir.h  ipasir_failed"    ipasir_failed    :: IpasirFailed
 
-$(ipasirSolver "PicoSAT"
-    [e| ipasir_signature |]
-    [e| ipasir_init      |]
-    [e| ipasir_release   |]
-    [e| ipasir_add       |]
-    [e| ipasir_assume    |]
-    [e| ipasir_solve     |]
-    [e| ipasir_val       |]
-    [e| ipasir_failed    |])
+-- | A PicoSAT solver operating on Ints.
+data IntPicoSAT = IntPicoSAT Word (ForeignPtr ())
+    deriving (Eq, Ord, Generic)
+
+-- | @Proxy@ to @IntPicoSAT@ for ease of use.
+intPicoSAT :: Proxy IntPicoSAT
+intPicoSAT = Proxy
+
+instance IpasirSolver IntPicoSAT where
+instance Show IntPicoSAT where
+    show = ipasirShow ipasir_signature
+instance IntSolver IntPicoSAT where
+    newIntSolver _ = ipasirNewIntSolver ipasir_init ipasir_release
+    addIntClause = ipasirAddIntClause ipasir_add
+    addIntAssumption = ipasirAddIntAssumption ipasir_assume
+    numIntVars = nVars <$> get
+    solveInt = ipasirSolve ipasir_solve ipasir_val ipasir_failed

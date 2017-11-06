@@ -70,11 +70,6 @@ module SAT.IntSolver.TH
     , IpasirFailed
     ) where
 
-import GHC.Generics ( Generic )
-
-import Data.Char ( toLower )
-import Data.Proxy ( Proxy ( Proxy ) )
-
 import qualified Data.Vector as Vec
 
 import Data.Foldable ( mapM_, toList )
@@ -85,9 +80,8 @@ import Control.Comonad ( extract )
 import System.IO.Unsafe ( unsafePerformIO )
 import Language.Haskell.TH
     ( Q, Exp (..), Dec (..), Type (..), Pat (..)
-    , Name, mkName, newName, conT, conE
-    , Con ( NormalC ), Body ( NormalB ), Clause ( Clause )
-    , Bang ( Bang )
+    , mkName, newName, conT
+    , Con ( NormalC ), Bang ( Bang )
     , SourceUnpackedness(NoSourceUnpackedness)
     , SourceStrictness(NoSourceStrictness)
     )
@@ -135,7 +129,7 @@ type IpasirFailed = Ptr () -> CInt -> IO CInt
 -- 
 -- Since 'ipasir.h' is rather inefficient when it comes to adding clauses and reading models
 -- 'ffiSolver' should be used if more means of adding clauses or reading models can be provided.
--- 
+-- Clause ( Clause )
 -- = Example usage
 --
 -- Configure your buildsystem so that it includes the library providing the ipasir implementation.
@@ -238,26 +232,39 @@ ffiSolver name ffiShow ffiNewIntSolver ffiAddIntClause ffiAddAssumption ffiSolve
     let markerData = createData name [] ["Eq", "Ord", "Show", "Generic"]
     ptrType <- [t| ForeignPtr () |]
     let intStateName = "Int" ++ name ++ "State"
+    let intStateType = conT $ mkName intStateName
     let intStateData = createData intStateName [ConT ''Word, ptrType] ["Eq", "Ord", "Generic"]
+    let nVarsField = field 0 intStateData
+    let ptrField = field 1 intStateData
     impl <- [d|
 
-            instance Show $(markerType) where
-                show = $ffiShow . genericFst
-            instance IntSolver $(markerType) where
-                type (Marker $(markerType)) = $(conT $ mkName intStateName)
+            instance Show $(intStateType) where
+                show = $ffiShow . $ptrField
+            instance IntSolver $(intStateType) where
+                type (Marker $(intStateType)) = $(markerType)
                 newIntSolver _ = do
                     ptr <- $ffiNewIntSolver
-                    retun $ genericCtr 0 ptr
-                addIntClause c = StateT (\ s -> (\ s' -> ((),s')) <$> $ffiAddIntClause s c)
-                addIntAssumption a = StateT (\ s -> (\ s' -> ((),s')) <$> $ffiAddAssumption s a)
-                numIntVars = fst <$> get
-                solveInt = lift ( $ffiSolve solver ) =<< get
+                    return $ $(ctr intStateData) 0 ptr
+                addIntClause c =
+                    StateT (\ s -> (\ s' -> ((),s')) . uncurry $(ctr intStateData) <$> $ffiAddIntClause ($(nVarsField) s, $(ptrField) s) c)
+                addIntAssumption a =
+                    StateT (\ s -> (\ s' -> ((),s')) . uncurry $(ctr intStateData) <$> $ffiAddAssumption ($(nVarsField) s, $(ptrField) s) a)
+                numIntVars = $(nVarsField) <$> get
+                solveInt = do
+                    s <- get
+                    let solver = ($(nVarsField) s, $(ptrField) s)
+                    lift ($ffiSolve solver)
 
         |]
     
     return $ markerData : intStateData : impl
 
-createData :: String -> [Type] -> [String] -> Dec
+-- | Create a declaration for an adt with a single constructor that is named the same as the type itself.
+-- its arguments are the provided types. It derives all provided classes provided
+createData :: String   -- ^ name of the adt and constructor
+           -> [Type]   -- ^ types of the constructor arguments
+           -> [String] -- ^ classes to derive
+           -> Dec
 createData name types classes = DataD [] dataName [] Nothing
     [ NormalC dataName (bang <$> types) ] derive
   where
@@ -265,8 +272,21 @@ createData name types classes = DataD [] dataName [] Nothing
     bang = (Bang NoSourceUnpackedness NoSourceStrictness, )
     derive = [ ConT $ mkName cls | cls <- classes]
 
-genericCtr :: Generic a => Word -> ForeignPtr () -> a
-genericCtr nVars ptr = to $ M1 $ M1 (M1 (K1 nVars) :*: M1 (K1 ptr))
+ctr :: Dec -> Q Exp
+ctr (DataD _ _ _ _ [NormalC ctrName _] _) = return $ ConE ctrName
+ctr _ = error "ctr needs an adt declaration with exactly one constructor"
+
+field :: Word -> Dec -> Q Exp
+field n (DataD _ _ _ _ [NormalC ctrName ctrArgs] _) = do
+    x <- newName "x"
+    let p = ConP ctrName $ zipWith (toPat x) ctrArgs [0..]
+    return $ LamE [p] $ VarE x
+  where
+    toPat x _ i
+        | i == n    = VarP x
+        | otherwise = WildP
+field _ _ = error "field needs an adt declaration with exactly one constructor"
+
 
 -- | create a 'show' implmenetation for a Solver that consist of the provided solver signature and the hex value of its pointer.
 -- @$(ffiSolverShow signature)@
@@ -328,17 +348,16 @@ ipasirAddIntAssumption ipasir_assume = [e|
         ipasirAddIntAssumptionImpl $ipasir_assume
     |]
 
-ipasirAddIntAssumptionImpl :: Generic s
-                           => IpasirAdd -- ^ 'ipasir_assume' ffi binding
-                           -> s         -- ^ the solver
-                           -> Lit Word  -- ^ Assumption
-                           -> IO s      -- ^ the new solver
-ipasirAddIntAssumptionImpl ipasir_assume solver l = do
+ipasirAddIntAssumptionImpl :: IpasirAdd                -- ^ 'ipasir_assume' ffi binding
+                           -> (Word, ForeignPtr ())    -- ^ the solver
+                           -> Lit Word                 -- ^ Assumption
+                           -> IO (Word, ForeignPtr ()) -- ^ the new solver
+ipasirAddIntAssumptionImpl ipasir_assume (numVars, ptr) l = do
     add $ fromLit l
-    return $ genericCtr newNumVars $ genericPtr solver
+    return (newNumVars, ptr)
   where
-    newNumVars = max (genericNVars solver) (extract l)
-    add i = withForeignPtr (genericPtr solver) (`ipasir_assume` toEnum i) 
+    newNumVars = max numVars (extract l)
+    add i = withForeignPtr ptr (`ipasir_assume` toEnum i) 
 
 -- | Creates a 'solve' implementation from 'ipasir_solve', 'ipasir_val' and 'ipasir_failed' ffi functions.
 -- This assumes that all added clauses are terminated with a '0' and that the internal solver state is not

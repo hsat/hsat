@@ -1,7 +1,8 @@
-name:                sat
+name:                hsat
+Description:         Bindings for SAT solvers.
 version:             0.1.0.0
-homepage:            https://github.com/githubuser/sat#readme
-license:             BSD3
+homepage:            https://github.com/hsat/hsat#readme
+license:             MIT
 license-file:        LICENSE
 author:              Philipp Dargel
 maintainer:          chisui@tzi.de
@@ -27,7 +28,7 @@ library
                        c-sources/ipasirpicosatglue.c
   ghc-options:         -Wall -O3 -optc=-Wall -optc=-Wextra -optc=-DNDEBUG -optc=-O3
   hs-source-dirs:      src
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       base >= 4.9 && < 5
                      , comonad
                      , containers
                      , transformers
@@ -35,16 +36,17 @@ library
                      , split
                      , template-haskell
                      , boxes
-  exposed-modules:     SAT
+  exposed-modules:     SAT.All
                      , SAT.Solver
                      , SAT.IntSolver
-                     , SAT.IntSolver.TH
+                     , SAT.IntSolver.IPASIR
                      , SAT.Types
                      , SAT.Util
                      , SAT.Variables
                      , SAT.PicoSAT
   other-modules:       SAT.Types.LBool
                      , SAT.Types.Lit
+                     , SAT.IntSolver.IPASIR.Generic
                      , SAT.IntSolver.Base
                      , SAT.IntSolver.Util
 

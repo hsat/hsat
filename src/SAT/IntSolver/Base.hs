@@ -1,7 +1,11 @@
+-- | Base module für 'IntSolver'.
+-- This provides only the @IntSolver@ class itself, the @evalIntSolver@ function and the @IntSolverAction@ type.
+-- Anything ontop of these definitions is defined in 'SAT.InstSolver.Util' and exposed through 'SAT.InstSolver'.
 {-# LANGUAGE FlexibleContexts, TypeFamilies #-}
 module SAT.IntSolver.Base
     ( IntSolver(..)
     , evalIntSolver
+    , IntSolverAction
     ) where
 
 import Data.Proxy ( Proxy )
@@ -14,19 +18,19 @@ import SAT.Types ( ESolution, Lit )
 
 -- | evaluates a solver computation with the given solver and return the final value.
 evalIntSolver :: IntSolver s
-              => Marker s       -- ^ concrete solver implementation to use
+              => Proxy s             -- ^ concrete solver implementation to use
               -> IntSolverAction s a -- ^ solver computation
               -> IO a
 evalIntSolver solverProxy action = evalStateT action =<< newIntSolver solverProxy
 
+-- | An action perfomed by an @IntSolver@.
 type IntSolverAction s t = StateT s IO t
 
 -- | An IntSolver is a SAT-Solver that represents variables as positive, natural numbers. 
 class IntSolver s where
-    type Marker s
 
     -- | create a new instance of the solver.
-    newIntSolver :: Marker s -> IO s
+    newIntSolver :: Proxy s -> IO s
 
     -- | add the given cnf clause to the solver.
     -- former clauses are not discarded.

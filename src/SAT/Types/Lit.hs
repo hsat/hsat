@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveFunctor, MultiParamTypeClasses #-}
+-- | Provides a representation of literals in a clause.
+{-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
 module SAT.Types.Lit
     ( Lit (..)
     , IsLit (..)
@@ -134,7 +135,7 @@ class IsLit a l where
 
 instance IsLit Int Word where
     toLit 0 = litFrom0
-    toLit i = lit (i > 0) $ toEnum $ (abs i) - 1
+    toLit i = lit (i > 0) $ toEnum $ abs i - 1
     fromLit (Pos i) =  1 + fromEnum i
     fromLit (Neg i) = -1 - fromEnum i
 
