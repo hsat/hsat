@@ -44,4 +44,4 @@ instance IntSolver IntPicoSAT where
     addIntClause = ipasirAddIntClause ipasir_add
     addIntAssumption = ipasirAddIntAssumption ipasir_assume
     numIntVars = nVars <$> get
-    solveInt = ipasirSolve ipasir_solve ipasir_val ipasir_failed
+    intSolve = ipasirSolve ipasir_solve ipasir_val ipasir_failed

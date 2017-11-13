@@ -26,14 +26,17 @@ import Data.Functor.Classes
     , Ord1  ( liftCompare   )
     , Show1 ( liftShowsPrec )
     )
-import Data.Foldable ( Foldable )
+import Data.Foldable ( Foldable, fold )
 import Data.Traversable ( Traversable )
 import Data.Monoid ( Monoid(..), (<>) )
+
+import Data.Function ( on )
 
 import Data.Map ( Map )
 import qualified Data.Map as Map
 import Data.Set ( Set )
 import qualified Data.Set as Set
+import Data.List ( groupBy )
 
 import Data.Vector ( Vector )
 
@@ -52,7 +55,12 @@ newtype Solution v = Solution (Vector (v, LBool)) deriving
 
 -- | View @Solution@ as @Map@
 solutionAsMap :: Ord v => Solution v -> Map v LBool
-solutionAsMap (Solution v) = Map.fromList $ toList v
+solutionAsMap (Solution v) = Map.fromList $ map joinEntries $ groupBy ((==) `on` fst) $ toList v
+  where
+    joinEntries l =
+        ( fst $ head l
+        , getLAny $ fold $ map (LAny . snd) l
+        )
 
 instance IsList (Solution v) where
     type (Item (Solution v)) = (v, LBool)
@@ -72,7 +80,7 @@ instance Ord1 Solution where
 instance Show1 Solution where
     liftShowsPrec sPrec _ _ (Solution s) str = str ++ "Solution " ++ show (showLit <$> toList s)
       where
-        showLit (v, b) = ", " ++ lBoolToChar b : "(" ++ (sPrec 0 v ")")
+        showLit (v, b) = ", " ++ lBoolToChar b : "(" ++ sPrec 0 v ")"
 
 instance Applicative Solution where
     pure = Solution . pure . (,LTrue)

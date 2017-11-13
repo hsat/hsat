@@ -23,18 +23,18 @@ import SAT.Util
 import SAT.PicoSAT
 
 
-tests = testGroup "### IntSolver"
-    [ testProperty "solves corretly" (monadic . propSolve)
+tests = testGroup "IntSolver"
+    [ testProperty "solves corretly" $ monadic . propSolve
     ]
 
 newtype Cnf = Cnf [[Lit Word]] deriving (Show, Eq)
 instance Monad m => Serial m Cnf where
-    series = Cnf <$> localDepth (+ 2) series
+    series = Cnf <$> localDepth succ series
 
 propSolve :: Cnf -> IO (Either Reason Reason)
 propSolve (Cnf cnf) = evalIntSolver intPicoSAT $ do
     addIntClauses cnf
-    res <- solveInt
+    res <- intSolve
     return $ case res of
         (ESolution sol) -> if testSolution sol cnf
             then Right "OK"

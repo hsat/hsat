@@ -43,7 +43,7 @@ class IntSolver s where
 
     -- | add an assumption to the solver.
     -- This assumption will only be used for the next solution.
-    -- Assumptions added since the last invocation of 'solveInt' are not discarded.
+    -- Assumptions added since the last invocation of 'intSolve' are not discarded.
     -- 
     -- A Solver does not have to implement this function in a meaningful way
     addIntAssumption :: Lit Word -> IntSolverAction s ()
@@ -51,7 +51,7 @@ class IntSolver s where
     
     -- | add all assumptions to the solver.
     -- These assumptions will only be used for the next solution.
-    -- Assumptions added since the last invocation of 'solveInt' are not discarded.
+    -- Assumptions added since the last invocation of 'intSolve' are not discarded.
     -- 
     -- A Solver does not have to implement this function in a meaningful way
     addIntAssumptions :: (Foldable f) => f (Lit Word) -> IntSolverAction s ()
@@ -65,5 +65,5 @@ class IntSolver s where
     -- | Try to find a solution for all added cnf clauses and currently active
     -- assumptions.
     -- This will clear all added assumptions.
-    solveInt :: IntSolverAction s (ESolution Word)
+    intSolve :: IntSolverAction s (ESolution Word)
     

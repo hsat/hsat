@@ -44,7 +44,7 @@ import SAT.Types
     , LBool (..), Lit, IsLit ( fromLit )
     )
 
-    {-# LANGUAGE TupleSections #-}
+
 -- | Signature for 'ipasir_signature' ffi functions.
 type IpasirSignature = IO CString
 -- | Signature for 'ipasir_init' ffi functions.
@@ -63,15 +63,29 @@ type IpasirVal = Ptr () -> CInt -> IO CInt
 type IpasirFailed = Ptr () -> CInt -> IO CInt
 
 
+-- | Helper class for ipasir functions. Any Solver that uses these implementations has to have a way of
+-- providing a pointer to the C-solver and keep track of the number of variables.
+--
+-- If the solver type is an adt of the form:
+-- 
+-- @
+--     data MySolver = MySolver Word (ForeignPtr ())
+-- @
+-- 
+-- You can derive @Generic@ and the @IpasirSolver@ instance will to the right thing.
 class IpasirSolver s where
+
+    -- | get the number of variables from solver.
     nVars :: s -> Word
     default nVars :: (Generic s, GIpasirSolver (Rep s)) => s -> Word
     nVars = fromJust . gNVars . from
 
+    -- | get the pointer to the underlying C-solver.
     ptr :: s -> ForeignPtr ()
     default ptr :: (Generic s, GIpasirSolver (Rep s)) => s -> ForeignPtr ()
     ptr = fromJust . gPtr . from
 
+    -- | create a new solver from the number of variables and pointer.
     ctr :: Word -> ForeignPtr () -> s
     default ctr :: (Generic s, GIpasirSolver (Rep s)) => Word -> ForeignPtr () -> s
     ctr n p = to $ gCtr n p

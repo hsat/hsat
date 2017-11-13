@@ -21,12 +21,12 @@ import TestUtils
 import SAT.Types
 
 
-tests = testGroup "### Lit"
+tests = testGroup "Lit"
     [ testGroup "Ord"
         [ testProperty "Pos a > Neg a"          propOrdSign
         , testProperty "Pos a > Pos b => a > b" (propOrdValue Pos)
         , testProperty "Neg a > Neg b => a > b" (propOrdValue Neg)
-        , testProperty "duals are neighbors"    propOrdNeighbors
+        , testProperty "duals are neighbors"    $ changeDepth pred propOrdNeighbors
         ]
     , testGroup "Foldable"
         [ testProperty "foldr f b l = f (extract l) b" propFoldableFoldr

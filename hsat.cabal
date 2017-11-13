@@ -64,6 +64,7 @@ test-suite hsat-test
                      , containers
                      , transformers
                      , comonad
+                     , vector
                      
                      , tasty
                      , tasty-smallcheck
